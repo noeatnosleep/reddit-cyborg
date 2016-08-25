@@ -161,11 +161,22 @@ class Bot():
             self.rules.append(Rule(data=entry))
         print('...done')
 
+    def reload_rules(self):
+        print('Rules reload ordered')
+        self.rules=[]
+        self.load_rules()
+
 
     def mainloop(self):
 
         for comment in praw.helpers.comment_stream(r, "mod", limit=100, verbosity=0):
             print('checking comment by /u/'+comment.author.name)
+
+            #hard code rule reload
+            if comment.author==ME and comment.body=="!reload"
+                comment.delete()
+                self.reload_rules()
+            
             for rule in self.rules:
                 print('checking rule #'+str(self.rules.index(rule)))
                 rule.evaluate_comment(comment)
