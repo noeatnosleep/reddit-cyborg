@@ -173,7 +173,7 @@ class Bot():
             print('checking comment by /u/'+comment.author.name)
 
             #hard code rule reload
-            if comment.author==ME and comment.body=="!reload"
+            if comment.author==ME and comment.body=="!reload":
                 comment.delete()
                 self.reload_rules()
             
