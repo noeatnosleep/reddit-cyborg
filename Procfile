@@ -1,1 +1,1 @@
-bot: python activitymonitor.py
+cyborg: python cyborg.py
