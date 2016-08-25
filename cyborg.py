@@ -3,6 +3,8 @@ import json
 import yaml
 import os
 import re
+from collections import deque
+import time
 
 #Globals
 
@@ -26,112 +28,157 @@ class Rule():
 
     def __init__(self, data={}):
 
+        self.data=data
+
         self.subreddit = []
-        self.author_name = [],
-        self.body = [],
+        self.type = "both"
+        self.author_name = []
+        self.body = []
         self.body_regex = []
 
-        self.action = [],
-        self.reason = "",
+        self.action = []
+        self.reason = ""
         self.comment = ""
         self.ban_message = ""
+
+        if 'type' in data:
+            self.type = data['type']
 
         if 'subreddit' in data:
             self.subreddit = data['subreddit']
 
         if 'author_name' in data:
-            self.subreddit = data['author_name']
+            self.author_name = data['author_name']
+            
         if 'body' in data:
-            self.subreddit = data['body']
+            self.body = data['body']
 
         if 'body_regex' in data:
-            self.subreddit = data['body_regex']
+            self.body_regex = data['body_regex']
 
         if 'action' in data:
-            self.subreddit = data['action']
+            self.action = data['action']
 
         if 'reason' in data:
-            self.subreddit = data['reason']
+            self.reason = data['reason']
 
         if 'comment' in data:
-            self.subreddit = data['comment']
+            self.comment = data['comment']
 
         if 'ban_message' in data:
-            self.subreddit = data['ban_message']
+            self.ban_message = data['ban_message']
+                
+    def __str__(self):
+        return yaml.dump(self.data)
 
-    def evaluate_comment(self, comment):
+    def evaluate_thing(self, thing):
 
         #begin checking
+        if self.type=="both":
+            pass
+        elif isinstance(thing, praw.objects.Comment):
+            if "submission" in self.type:
+                return
+        elif isinstance(thing, praw.objects.Submission):
+            if self.type == "comment":
+                return
+            elif self.type == "link submission" and thing.url == thing.permalink:
+                return
+            elif self.type == "text submission" and thing.url != thing.permalink:
+                return
 
         if self.subreddit:
-            if not any(x.lower()==comment.subreddit.display_name.lower() for x in self.subreddit):
-                print('mismatched at subreddit')
+            if not any(x.lower()==thing.subreddit.display_name.lower() for x in self.subreddit):
+                print('subreddit mismatch')
                 return
 
         if self.author_name:
-            if comment.author is not None:
-                if not any(x.lower()==comment.author.name.lower() for x in self.author_name):
-                    print('mismatched at authorname')
+            if thing.author is not None:
+                if not any(x.lower()==thing.author.name.lower() for x in self.author_name):
+                    print('author mismatch')
                     return
 
         if self.body:
-            if not any(x.lower()==y.lower() for x in comment.body.split() for y in self.body):
-                print('mismatched at body')
+            try:
+                if isinstance(thing, praw.objects.Comment):
+                    if not any(x.lower()==y.lower() for x in thing.body.split() for y in self.body):
+                        print('body mismatch')
+                        return
+                elif isinstance(thing, praw.objects.Submission):
+                    if not any(x.lower()==y.lower() for x in thing.selftext.split() for y in self.body):
+                        print('body mismatch')
+                        return
+            except AttributeError:
+                print('body error')
                 return
 
         if self.body_regex:
-            if not any(re.search(x.lower(), comment.body.lower()) for x in self.body_regex):
-                print('mismatched at body_regex')
+            try:
+                if isinstance(thing, praw.objects.Comment):
+                    if not any(re.search(x.lower(), thing.body.lower()) for x in self.body_regex):
+                        print('body regex mismatch')
+                        return
+                elif isinstance(thing, praw.objects.Submission):
+                    if not any(re.search(x.lower(), thing.selftext.lower()) for x in self.body_regex):
+                        print('body regex mismatch')
+                        return
+            except AttributeError:
+                print('body regex error')
                 return
 
 
         #at this point all criteria are satisfied. Act.
-        print("rule triggered at "+comment.permalink)
+        print("rule triggered at "+thing.permalink)
 
         #see if we need to fetch the parent thing
+        #if we do but it's not a comment then return
         if any("parent" in x for x in self.action):
-            parent=r.get_info(thing_id=comment.parent_id)
+            if isinstance(thing, praw.objects.Comment):
+                parent=r.get_info(thing_id=thing.parent_id)
+            else:
+                return
+            
 
         #do all actions
 
         if "remove" in self.action:
-            comment.remove()
+            thing.remove()
 
         if "remove_parent" in self.action:
             parent.remove()
 
         if "spam" in self.action:
-            comment.remove(spam=True)
+            thing.remove(spam=True)
 
         if "spam_parent" in self.action:
             parent.remove(spam=True)
 
         if "ban" in self.action:
-            comment.subreddit.add_ban(comment.author, note=self.reason, ban_message=self.ban_message)
+            thing.subreddit.add_ban(thing.author, note=self.reason, ban_message=self.ban_message)
 
         if "ban_parent" in self.action:
-            comment.subreddit.add_ban(parent.author, note=self.reason, ban_message=self.ban_message)
+            thing.subreddit.add_ban(parent.author, note=self.reason, ban_message=self.ban_message)
 
         if "report" in self.action:
-            comment.report(reason=self.reason)
+            thing.report(reason=self.reason)
 
         if "report_parent" in self.action:
             parent.report(reason=self.reason)
 
         if "approve" in self.action:
-            comment.approve()
+            thing.approve()
 
         if "approve_parent" in self.action:
             parent.approve()
 
         if "rts" in self.action:
-            r.submit("spam", "Overview for /u/"+comment.author.name, url="http://reddit.com/user/"+comment.author.name)
+            r.submit("spam", "Overview for /u/"+thing.author.name, url="http://reddit.com/user/"+thing.author.name)
 
         if "rts_parent" in self.action:
             r.submit("spam", "Overview for /u/"+parent.author.name, url="http://reddit.com/user/"+parent.author.name)
 
-        if self.outputs['comment']:
-            comment.reply(self.outputs['comment']).distinguish()
+        if self.comment:
+            comment.reply(self.comment).distinguish()
         
 
 class Bot():
@@ -139,6 +186,8 @@ class Bot():
     def __init__(self):
 
         self.rules=[]
+
+        self.already_done = deque([],maxlen=400)
 
     def run(self):
 
@@ -167,48 +216,82 @@ class Bot():
         self.load_rules()
 
 
+    def full_stream(self):
+        #unending generator which returns content from /new, /comments, and /edited of /r/mod
+
+        subreddit = r.get_subreddit('mod')
+
+        start_time = int(time.time())
+        
+
+        while True:
+            single_round_stream = []
+
+            #fetch /new
+            print('fetching /new')
+            for submission in subreddit.get_new(limit=100):
+
+                #avoid old work (important for bot startup)
+                if submission.created_utc < start_time:
+                    continue
+
+                #avoid duplicate work
+                if submission.fullname in self.already_done:
+                    continue
+                
+                self.already_done.append(submission.fullname)
+                single_round_stream.append(submission)
+
+            #fetch /comments
+            print('fetching /comments')
+            for comment in subreddit.get_comments(limit=100):
+
+                #avoid old work
+                if comment.created_utc < start_time:
+                    continue
+
+                #avoid duplicate work
+                if comment.fullname in self.already_done:
+                    continue
+                self.already_done.append(comment.fullname)
+                single_round_stream.append(comment)
+
+            #fetch /edited
+            print('fetching /about/edited')
+            for thing in subreddit.get_edited(limit=100):
+                #ignore removed things
+                if thing.banned_by:
+                    continue
+
+                if thing.edited < start_time:
+                    continue
+                
+                #uses duples so that new edits are detected but old edits are passed by
+                #.edited is the edit timestamp (False on unedited things)
+                if (thing.fullname, thing.edited) not in self.already_done:
+                    continue
+                
+                self.already_done.append((thing.fullname, thing.edited))
+                single_round_stream.append(thing)
+
+            for thing in single_round_stream:
+
+                yield thing
+
     def mainloop(self):
 
-        for comment in praw.helpers.comment_stream(r, "mod", limit=100, verbosity=0):
-            print('checking comment by /u/'+comment.author.name)
+        for thing in self.full_stream():
+            print('checking thing '+thing.fullname+' by /u/'+thing.author.name+' in /r/'+thing.subreddit.display_name)
 
             #hard code rule reload
-            if comment.author==ME and comment.body=="!reload":
-                comment.delete()
-                self.reload_rules()
+            if isinstance(thing, praw.objects.Comment):
+                if thing.author==ME and thing.body=="!reload":
+                    thing.delete()
+                    self.reload_rules()
+                    continue
             
             for rule in self.rules:
-                print('checking rule #'+str(self.rules.index(rule)))
-                rule.evaluate_comment(comment)
-        
-
-        
-
-    def process_signups(self):
-
-        #get new, unflaired submissions
-
-        for submission in SUBREDDIT.get_new(limit=100):
-
-            #end on submissions that have already been evaluated
-            if submission.flair_css_class == "signed up":
-                break
-
-            #get username:
-            if submission.author == None:
-                continue
-            username = submission.author.name
-
-            #check to make sure it's not a duplicate
-            try:
-                wiki = r.get_wiki_page(SUBREDDIT, 'users/'+username).content_md
-                continue
-            except praw.errors.NotFound:
-                pass
-
-            text = "###### If you edit this page, you must [click this link, then click 'send'](http://www.reddit.com/message/compose/?to=reddit_cyborg&subject=%update&message=update) to have RedditCyborg re-load the rules from here"
-
-            r.edit_wiki_page(SUBREDDIT, 'users/'+username, text)
+                rule.evaluate_thing(thing)
 
 
 if __name__=="__main__":
