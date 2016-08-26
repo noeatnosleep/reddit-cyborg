@@ -19,12 +19,6 @@ class Rule():
 
     #Rule object which stores rule data
 
-    _valid_args=[
-        'subreddit',
-        'author_name',
-        'action',
-        'body'
-        ]
 
     def __init__(self, data={}):
 
@@ -185,6 +179,8 @@ class Bot():
 
     def __init__(self):
 
+        self.start_time = time.time()
+
         self.rules=[]
 
         self.already_done = deque([],maxlen=400)
@@ -221,9 +217,6 @@ class Bot():
 
         subreddit = r.get_subreddit('mod')
 
-        start_time = int(time.time())
-        
-
         while True:
             single_round_stream = []
 
@@ -232,7 +225,7 @@ class Bot():
             for submission in subreddit.get_new(limit=100):
 
                 #avoid old work (important for bot startup)
-                if submission.created_utc < start_time:
+                if submission.created_utc < self.start_time:
                     continue
 
                 #avoid duplicate work
@@ -247,7 +240,7 @@ class Bot():
             for comment in subreddit.get_comments(limit=100):
 
                 #avoid old work
-                if comment.created_utc < start_time:
+                if comment.created_utc < self.start_time:
                     continue
 
                 #avoid duplicate work
@@ -263,12 +256,12 @@ class Bot():
                 if thing.banned_by:
                     continue
 
-                if thing.edited < start_time:
+                if thing.edited < self.start_time:
                     continue
                 
                 #uses duples so that new edits are detected but old edits are passed by
                 #.edited is the edit timestamp (False on unedited things)
-                if (thing.fullname, thing.edited) not in self.already_done:
+                if (thing.fullname, thing.edited) in self.already_done:
                     continue
                 
                 self.already_done.append((thing.fullname, thing.edited))
