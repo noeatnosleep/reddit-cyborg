@@ -35,6 +35,7 @@ class Rule():
         self.reason = ""
         self.comment = ""
         self.ban_message = ""
+        self.ban_duration = 0
 
         if 'type' in data:
             self.type = data['type']
@@ -65,6 +66,9 @@ class Rule():
 
         if 'domain' in data:
             self.domain = data['domain']
+
+        if 'ban_duration' in data:
+            self.ban_duration = data['ban_duration']
                 
     def __str__(self):
         return yaml.dump(self.data)
@@ -159,10 +163,10 @@ class Rule():
             parent.remove(spam=True)
 
         if "ban" in self.action:
-            thing.subreddit.add_ban(thing.author, note=self.reason, ban_message=self.ban_message)
+            thing.subreddit.add_ban(thing.author, note=self.reason, ban_message=self.ban_message, duration = self.ban_duration)
 
         if "ban_parent" in self.action:
-            thing.subreddit.add_ban(parent.author, note=self.reason, ban_message=self.ban_message)
+            thing.subreddit.add_ban(parent.author, note=self.reason, ban_message=self.ban_message, duration = self.ban_duration)
 
         if "report" in self.action:
             thing.report(reason=self.reason)
