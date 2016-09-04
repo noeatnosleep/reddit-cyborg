@@ -29,6 +29,7 @@ class Rule():
         self.author_name = []
         self.body = []
         self.body_regex = []
+        self.domain = []
 
         self.action = []
         self.reason = ""
@@ -61,6 +62,9 @@ class Rule():
 
         if 'ban_message' in data:
             self.ban_message = data['ban_message']
+
+        if 'domain' in data:
+            self.domain = data['domain']
                 
     def __str__(self):
         return yaml.dump(self.data)
@@ -72,13 +76,18 @@ class Rule():
             pass
         elif isinstance(thing, praw.objects.Comment):
             if "submission" in self.type:
+                print('type mismatch - thing is not comment')
                 return
+            
         elif isinstance(thing, praw.objects.Submission):
             if self.type == "comment":
+                print('type mismatch - thing is not submission')
                 return
             elif self.type == "link submission" and thing.url == thing.permalink:
+                print('type mismatch - thing is not link submission')
                 return
             elif self.type == "text submission" and thing.url != thing.permalink:
+                print('type mismatch - thing is not text submission')
                 return
 
         if self.subreddit:
@@ -87,37 +96,39 @@ class Rule():
                 return
 
         if self.author_name:
-            if thing.author is not None:
+            if getattr(thing, 'author', None):
                 if not any(x.lower()==thing.author.name.lower() for x in self.author_name):
                     print('author mismatch')
                     return
 
+        if self.domain:
+            if not getattr(thing, 'domain', None):
+                print('domain failed')
+                return
+
+            if not any(x in thing.domain for x in self.domain):
+                print('domain mismatch')
+                return
+
         if self.body:
-            try:
-                if isinstance(thing, praw.objects.Comment):
-                    if not any(x.lower()==y.lower() for x in thing.body.split() for y in self.body):
-                        print('body mismatch')
-                        return
-                elif isinstance(thing, praw.objects.Submission):
-                    if not any(x.lower()==y.lower() for x in thing.selftext.split() for y in self.body):
-                        print('body mismatch')
-                        return
-            except AttributeError:
-                print('body error')
+
+            #get body text from comment or selftext
+            body = getattr(thing, 'body', getattr(thing, 'selftext', None))
+            if not body:
+                return
+            
+            if not any(x in body for x in self.body):
                 return
 
         if self.body_regex:
-            try:
-                if isinstance(thing, praw.objects.Comment):
-                    if not any(re.search(x.lower(), thing.body.lower()) for x in self.body_regex):
-                        print('body regex mismatch')
-                        return
-                elif isinstance(thing, praw.objects.Submission):
-                    if not any(re.search(x.lower(), thing.selftext.lower()) for x in self.body_regex):
-                        print('body regex mismatch')
-                        return
-            except AttributeError:
-                print('body regex error')
+
+            body = getattr(thing, 'body', getattr(thing, 'selftext', None))
+
+            if not body:
+                return
+
+            if not any(re.search(x.lower(), body.lower()) for x in self.body_regex):
+                print('body regex mismatch')
                 return
 
 
