@@ -35,7 +35,7 @@ class Rule():
         self.reason = ""
         self.comment = ""
         self.ban_message = ""
-        self.ban_duration = 0
+        self.ban_duration = None
 
         if 'type' in data:
             self.type = data['type']
