@@ -19,11 +19,14 @@ class Rule():
 
     #Rule object which stores rule data
 
+    
+
 
     def __init__(self, data={}):
 
         self.data=data
 
+        #set default values
         self.subreddit = []
         self.type = "both"
         self.author_name = []
@@ -37,43 +40,35 @@ class Rule():
         self.ban_message = ""
         self.ban_duration = None
 
-        if 'type' in data:
-            self.type = data['type']
+        #valid data fields:
 
-        if 'subreddit' in data:
-            self.subreddit = data['subreddit']
+        _valid_data = {
+            'type':         self.type,
+            'subreddit':    self.subreddit,
+            'author_name':  self.author_name,
+            'body':         self.body,
+            'body_regex':   self.body_regex,
+            'action':       self.action,
+            'reason':       self.reason,
+            'comment':      self.comment,
+            'ban_message':  self.ban_message,
+            'domain':       self.domain,
+            'ban_duration': self.ban_duration
+            }
 
-        if 'author_name' in data:
-            self.author_name = data['author_name']
-            
-        if 'body' in data:
-            self.body = data['body']
+        for entry in data:
+            if entry not in _valid_data:
+                raise KeyError("unknown field `%s` in rule" % entry)
 
-        if 'body_regex' in data:
-            self.body_regex = data['body_regex']
-
-        if 'action' in data:
-            self.action = data['action']
-
-        if 'reason' in data:
-            self.reason = data['reason']
-
-        if 'comment' in data:
-            self.comment = data['comment']
-
-        if 'ban_message' in data:
-            self.ban_message = data['ban_message']
-
-        if 'domain' in data:
-            self.domain = data['domain']
-
-        if 'ban_duration' in data:
-            self.ban_duration = data['ban_duration']
+            _valid_data[entry]=data[entry]
                 
     def __str__(self):
         return yaml.dump(self.data)
 
-    def evaluate_thing(self, thing):
+    def match_thing(self, thing):
+
+        #returns False if it's not a match,
+        #True if successful match
 
         #begin checking
         if self.type=="both":
@@ -81,63 +76,69 @@ class Rule():
         elif isinstance(thing, praw.objects.Comment):
             if "submission" in self.type:
                 print('type mismatch - thing is not comment')
-                return
+                return False
             
         elif isinstance(thing, praw.objects.Submission):
             if self.type == "comment":
                 print('type mismatch - thing is not submission')
-                return
+                return False
             elif self.type == "link submission" and thing.url == thing.permalink:
                 print('type mismatch - thing is not link submission')
-                return
+                return False
             elif self.type == "text submission" and thing.url != thing.permalink:
                 print('type mismatch - thing is not text submission')
-                return
+                return False
 
         if self.subreddit:
             if not any(x.lower()==thing.subreddit.display_name.lower() for x in self.subreddit):
                 print('subreddit mismatch')
-                return
+                return False
 
         if self.author_name:
             if getattr(thing, 'author', None):
                 if not any(x.lower()==thing.author.name.lower() for x in self.author_name):
                     print('author mismatch')
-                    return
+                    return False
 
         if self.domain:
             if not getattr(thing, 'domain', None):
                 print('domain failed')
-                return
+                return False
 
-            if not any(x in thing.domain for x in self.domain):
+            if not any(thing.domain.endswith(x) for x in self.domain):
                 print('domain mismatch')
-                return
+                return False
 
         if self.body:
 
             #get body text from comment or selftext
             body = getattr(thing, 'body', getattr(thing, 'selftext', None))
             if not body:
-                return
+                return False
             
             if not any(x in body for x in self.body):
-                return
+                return False
 
         if self.body_regex:
 
             body = getattr(thing, 'body', getattr(thing, 'selftext', None))
 
             if not body:
-                return
+                return False
 
             if not any(re.search(x.lower(), body.lower()) for x in self.body_regex):
                 print('body regex mismatch')
-                return
+                return False
+
+            
 
 
         #at this point all criteria are satisfied. Act.
         print("rule triggered at "+thing.permalink)
+
+        return True
+
+    def act_on(self, thing):
 
         #see if we need to fetch the parent thing
         #if we do but it's not a comment then return
@@ -145,7 +146,7 @@ class Rule():
             if isinstance(thing, praw.objects.Comment):
                 parent=r.get_info(thing_id=thing.parent_id)
             else:
-                return
+                return False
             
 
         #do all actions
@@ -188,6 +189,8 @@ class Rule():
 
         if self.comment:
             comment.reply(self.comment).distinguish()
+
+        return True
         
 
 class Bot():
@@ -216,9 +219,15 @@ class Bot():
 
         print('loading rules...')
         wiki_page = r.get_wiki_page(SUBREDDIT, "users/"+ME.name).content_md
-
-        for entry in yaml.safe_load_all(wiki_page):
-            self.rules.append(Rule(data=entry))
+        try:
+            i=1
+            for entry in yaml.safe_load_all(wiki_page):
+                self.rules.append(Rule(data=entry))
+                i+=1
+        except KeyError as e:
+            r.send_message(ME, 'Error in Rule #'+str(i),e).mark_as_unread()
+        except:
+            r.send_message(ME, "Unable to parse rules", "Unable to parse rules")
         print('...done')
 
     def reload_rules(self):
@@ -236,7 +245,6 @@ class Bot():
             single_round_stream = []
 
             #fetch /new
-            print('fetching /new')
             for submission in subreddit.get_new(limit=100):
 
                 #avoid old work (important for bot startup)
@@ -251,7 +259,6 @@ class Bot():
                 single_round_stream.append(submission)
 
             #fetch /comments
-            print('fetching /comments')
             for comment in subreddit.get_comments(limit=100):
 
                 #avoid old work
@@ -265,7 +272,6 @@ class Bot():
                 single_round_stream.append(comment)
 
             #fetch /edited
-            print('fetching /about/edited')
             for thing in subreddit.get_edited(limit=100):
                 #ignore removed things
                 if thing.banned_by:
@@ -286,6 +292,17 @@ class Bot():
 
                 yield thing
 
+    def log_action(self, rule, thing):
+
+        rule_text = str(rule)
+        rule_text = '    '+rule_text.replace('\n','\n    ')
+
+        text = thing.permalink + '\n\n' + rule_text
+
+        title = "Activated on thing %(fullname)s in /r/%(sub)s" % {'fullname':thing.fullname, 'sub': thing.subreddit.display_name}
+
+        r.submit(SUBREDDIT, title, text=text)
+
     def mainloop(self):
 
         for thing in self.full_stream():
@@ -299,7 +316,10 @@ class Bot():
                     continue
             
             for rule in self.rules:
-                rule.evaluate_thing(thing)
+                if rule.match_thing(thing):
+                    if rule.act_on(thing):
+                        self.log_action(rule, thing)
+                    
 
 
 if __name__=="__main__":
