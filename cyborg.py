@@ -19,48 +19,43 @@ class Rule():
 
     #Rule object which stores rule data
 
-    
-
-
     def __init__(self, data={}):
 
         self.data=data
 
-        #set default values
-        self.subreddit = []
-        self.type = "both"
-        self.author_name = []
-        self.body = []
-        self.body_regex = []
-        self.domain = []
-
-        self.action = []
-        self.reason = ""
-        self.comment = ""
-        self.ban_message = ""
-        self.ban_duration = None
-
-        #valid data fields:
-
-        _valid_data = {
-            'type':         self.type,
-            'subreddit':    self.subreddit,
-            'author_name':  self.author_name,
-            'body':         self.body,
-            'body_regex':   self.body_regex,
-            'action':       self.action,
-            'reason':       self.reason,
-            'comment':      self.comment,
-            'ban_message':  self.ban_message,
-            'domain':       self.domain,
-            'ban_duration': self.ban_duration
-            }
+        _valid_fields = [
+            'type',
+            'subreddit',
+            'author_name',
+            'body',
+            'body_regex',
+            'domain',
+            'action',
+            'reason',
+            'comment',
+            'ban_message',
+            'ban_duration'
+            ]
 
         for entry in data:
-            if entry not in _valid_data:
+            if entry not in _valid_fields:
                 raise KeyError("unknown field `%s` in rule" % entry)
 
-            _valid_data[entry]=data[entry]
+        #set values with defaults 
+        self.subreddit      = data.get('subreddit', [])
+        self.type           = data.get('type', "both")
+        self.author_name    = data.get('author_name', [])
+        self.body           = data.get('body', [])
+        self.body_regex     = data.get('body_regex', [])
+        self.domain         = data.get('domain', [])
+
+        self.action         = data.get('action', [])
+        self.reason         = data.get('reason', "")
+        self.comment        = data.get('comment', "")
+        self.ban_message    = data.get('ban_message', "")
+        self.ban_duration   = data.get('ban_duration', None)
+
+
                 
     def __str__(self):
         return yaml.dump(self.data)
@@ -75,12 +70,12 @@ class Rule():
             pass
         elif isinstance(thing, praw.objects.Comment):
             if "submission" in self.type:
-                print('type mismatch - thing is not comment')
+                print('type mismatch - thing is not submission')
                 return False
             
         elif isinstance(thing, praw.objects.Submission):
             if self.type == "comment":
-                print('type mismatch - thing is not submission')
+                print('type mismatch - thing is not comment')
                 return False
             elif self.type == "link submission" and thing.url == thing.permalink:
                 print('type mismatch - thing is not link submission')
@@ -114,9 +109,11 @@ class Rule():
             #get body text from comment or selftext
             body = getattr(thing, 'body', getattr(thing, 'selftext', None))
             if not body:
+                print('thing does not have body')
                 return False
             
             if not any(x in body for x in self.body):
+                print('body mismatch')
                 return False
 
         if self.body_regex:
@@ -124,6 +121,7 @@ class Rule():
             body = getattr(thing, 'body', getattr(thing, 'selftext', None))
 
             if not body:
+                print('thing does not have body for body_regex')
                 return False
 
             if not any(re.search(x.lower(), body.lower()) for x in self.body_regex):
