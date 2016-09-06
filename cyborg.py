@@ -297,7 +297,7 @@ class Bot():
 
         text = thing.permalink + '\n\n' + rule_text
 
-        title = "Activated on thing %(fullname)s in /r/%(sub)s" % {'fullname':thing.fullname, 'sub': thing.subreddit.display_name}
+        title = "Activated on thing %(fullname)s by /u/%(user)s in /r/%(sub)s" % {'fullname':thing.fullname, 'user':thing.author.name, 'sub': thing.subreddit.display_name}
 
         r.submit(SUBREDDIT, title, text=text)
 
