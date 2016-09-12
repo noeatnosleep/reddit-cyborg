@@ -14,6 +14,8 @@ SUBREDDIT = r.get_subreddit('redditcyborg')
 ME = r.get_redditor('captainmeta4')
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
+LOGGING_ENABLED = False
+
 
 class Rule():
 
@@ -316,7 +318,8 @@ class Bot():
             for rule in self.rules:
                 if rule.match_thing(thing):
                     if rule.act_on(thing):
-                        self.log_action(rule, thing)
+                        if LOGGING_ENABLED:
+                            self.log_action(rule, thing)
                     
 
 
