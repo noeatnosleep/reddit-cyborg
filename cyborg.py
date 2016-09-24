@@ -17,6 +17,17 @@ DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically.
 LOGGING_ENABLED = False
 
 
+
+def xor(bool1, bool2):
+
+    b1 = bool(bool1)
+    b2 = bool(bool2)
+
+    if (b1 or b2) and not (b1 and b2):
+        return True
+    else:
+        return False
+
 class Rule():
 
     #Rule object which stores rule data
@@ -36,7 +47,11 @@ class Rule():
             'reason',
             'comment',
             'ban_message',
-            'ban_duration'
+            'ban_duration',
+            'invert',
+            'message_subject',
+            'message',
+            'title'
             ]
 
         for entry in data:
@@ -50,12 +65,17 @@ class Rule():
         self.body           = data.get('body', [])
         self.body_regex     = data.get('body_regex', [])
         self.domain         = data.get('domain', [])
+        self.title          = data.get('title',[])
 
         self.action         = data.get('action', [])
         self.reason         = data.get('reason', "")
         self.comment        = data.get('comment', "")
         self.ban_message    = data.get('ban_message', "")
         self.ban_duration   = data.get('ban_duration', None)
+        self.message_subject= data.get('message_subject',"Automatic Notification")
+        self.message        = data.get('message',"")
+
+        self.invert = data.get('invert', [])
 
 
                 
@@ -87,22 +107,33 @@ class Rule():
                 return False
 
         if self.subreddit:
-            if not any(x.lower()==thing.subreddit.display_name.lower() for x in self.subreddit):
+            if xor(not any(x.lower()==thing.subreddit.display_name.lower() for x in self.subreddit), "subreddit" in self.invert):
                 print('subreddit mismatch')
                 return False
 
         if self.author_name:
             if getattr(thing, 'author', None):
-                if not any(x.lower()==thing.author.name.lower() for x in self.author_name):
+                if xor(not any(x.lower()==thing.author.name.lower() for x in self.author_name), "author_name" in self.invert):
                     print('author mismatch')
                     return False
+
+        if self.title:
+            title = getattr(thing, 'title', None)
+
+            if not title:
+                print('thing does not have title')
+                return False
+
+            if xor(not any(x in title for x in self.title), "title" in self.invert):
+                print('title mismatch')
+                return False
 
         if self.domain:
             if not getattr(thing, 'domain', None):
                 print('domain failed')
                 return False
 
-            if not any(thing.domain.endswith(x) for x in self.domain):
+            if xor(not any(thing.domain.endswith(x) for x in self.domain), "domain" in self.invert):
                 print('domain mismatch')
                 return False
 
@@ -114,7 +145,7 @@ class Rule():
                 print('thing does not have body')
                 return False
             
-            if not any(x in body for x in self.body):
+            if xor(not any(x in body for x in self.body), "body" in self.invert):
                 print('body mismatch')
                 return False
 
@@ -126,7 +157,7 @@ class Rule():
                 print('thing does not have body for body_regex')
                 return False
 
-            if not any(re.search(x.lower(), body.lower()) for x in self.body_regex):
+            if xor(not any(re.search(x.lower(), body.lower()) for x in self.body_regex), "body_regex" in self.invert):
                 print('body regex mismatch')
                 return False
 
@@ -189,6 +220,9 @@ class Rule():
 
         if self.comment:
             comment.reply(self.comment).distinguish()
+
+        if self.message:
+            r.send_message(comment.author, self.message_subject, self.message)
 
         return True
         
