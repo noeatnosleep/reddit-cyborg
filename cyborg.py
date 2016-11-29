@@ -8,10 +8,14 @@ import time
 
 #Globals
 
-r=praw.Reddit('reddit cyborg by /u/captainmeta4')
+r=praw.Reddit(user_agent='reddit cyborg by /u/captainmeta4',
+              client_id='MSr7KePev8-f4g',
+              client_secret=os.environ.get('client_secret'),
+              username='captainmeta4',
+              password=os.environ.get('password'))
 
-SUBREDDIT = r.get_subreddit('redditcyborg')
-ME = r.get_redditor('captainmeta4')
+SUBREDDIT = r.subreddit('cyborg_noeatnosleep')
+ME = r.redditor('captainmeta4')
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
 LOGGING_ENABLED = False
@@ -239,29 +243,31 @@ class Bot():
 
     def run(self):
 
-        self.login()
+        #self.login()
         self.load_rules()
         self.mainloop()
 
     def login(self):
 
-        r.login(ME, os.environ.get('password'), disable_warning=True)
+        r.login('captainmeta','1kCMamfrdt', disable_warning=True)
 
     def load_rules(self):
 
         #get wiki page
 
         print('loading rules...')
-        wiki_page = r.get_wiki_page(SUBREDDIT, "users/"+ME.name).content_md
+        wiki_page = praw.models.WikiPage(r,SUBREDDIT, "users/noeatnosleep").content_md
         try:
             i=1
             for entry in yaml.safe_load_all(wiki_page):
                 self.rules.append(Rule(data=entry))
                 i+=1
         except KeyError as e:
-            r.send_message(ME, 'Error in Rule #'+str(i),e).mark_as_unread()
+            #r.send_message(ME, 'Error in Rule #'+str(i),e).mark_as_unread()
+            print('Error in Rule #'+str(i),e)
         except:
-            r.send_message(ME, "Unable to parse rules", "Unable to parse rules")
+            #r.send_message(ME, "Unable to parse rules at Rule#"+str(i), "Unable to parse")
+            print('Unable to parse in Rule #'+str(i))
         print('...done')
 
     def reload_rules(self):
@@ -273,7 +279,7 @@ class Bot():
     def full_stream(self):
         #unending generator which returns content from /new, /comments, and /edited of /r/mod
 
-        subreddit = r.get_subreddit('mod')
+        subreddit = r.subreddit('mod-cyborg_noeatnosleep')
 
         while True:
             single_round_stream = []
