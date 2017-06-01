@@ -7,16 +7,18 @@ from collections import deque
 import time
 
 #Globals
+username = 'captainmeta4'
 
-r=praw.Reddit('reddit cyborg by /u/captainmeta4')
+r=praw.Reddit(user_agent='reddit cyborg by /u/captainmeta4',
+              username = username,
+              password = os.environ.get('password'),
+              client_id= os.environ.get('client_id'),
+              client_secret= os.environ.get('client_secret')
 
-SUBREDDIT = r.get_subreddit('redditcyborg')
-ME = r.get_redditor('captainmeta4')
+SUBREDDIT = r.subreddit('redditcyborg')
+ME = r.redditor(username)
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
-LOGGING_ENABLED = False
-
-
 
 def xor(bool1, bool2):
 
@@ -90,19 +92,19 @@ class Rule():
         #begin checking
         if self.type=="both":
             pass
-        elif isinstance(thing, praw.objects.Comment):
+        elif isinstance(thing, praw.models.Comment):
             if "submission" in self.type:
                 print('type mismatch - thing is not submission')
                 return False
             
-        elif isinstance(thing, praw.objects.Submission):
+        elif isinstance(thing, praw.models.Submission):
             if self.type == "comment":
                 print('type mismatch - thing is not comment')
                 return False
-            elif self.type == "link submission" and thing.url == thing.permalink:
+            elif self.type == "link submission" and thing.permalink in thing.url:
                 print('type mismatch - thing is not link submission')
                 return False
-            elif self.type == "text submission" and thing.url != thing.permalink:
+            elif self.type == "text submission" and thing.permalink not in thing.url:
                 print('type mismatch - thing is not text submission')
                 return False
 
@@ -165,7 +167,10 @@ class Rule():
 
 
         #at this point all criteria are satisfied. Act.
-        print("rule triggered at "+thing.permalink)
+        if isinstance(thing, praw.models.Comment):
+            print("rule triggered at "+thing.permalink())
+        elif isinstance(thing, praw.models.Submission):
+            print("rule triggered at "+thing.permalink)
 
         return True
 
@@ -174,8 +179,8 @@ class Rule():
         #see if we need to fetch the parent thing
         #if we do but it's not a comment then return
         if any("parent" in x for x in self.action):
-            if isinstance(thing, praw.objects.Comment):
-                parent=r.get_info(thing_id=thing.parent_id)
+            if isinstance(thing, praw.models.Comment):
+                parent=next(r.info([thing.parent_id]))
             else:
                 return False
             
@@ -183,22 +188,22 @@ class Rule():
         #do all actions
 
         if "remove" in self.action:
-            thing.remove()
+            thing.mod.remove()
 
         if "remove_parent" in self.action:
-            parent.remove()
+            parent.mod.remove()
 
         if "spam" in self.action:
-            thing.remove(spam=True)
+            thing.mod.remove(spam=True)
 
         if "spam_parent" in self.action:
-            parent.remove(spam=True)
+            parent.mod.remove(spam=True)
 
         if "ban" in self.action:
-            thing.subreddit.add_ban(thing.author, note=self.reason, ban_message=self.ban_message, duration = self.ban_duration)
+            thing.subreddit.banned.add(thing.author, ban_reason=self.reason, ban_message=self.ban_message, duration = self.ban_duration)
 
         if "ban_parent" in self.action:
-            thing.subreddit.add_ban(parent.author, note=self.reason, ban_message=self.ban_message, duration = self.ban_duration)
+            thing.subreddit.banned.add(parent.author, ban_reason=self.reason, ban_message=self.ban_message, duration = self.ban_duration)
 
         if "report" in self.action:
             thing.report(reason=self.reason)
@@ -207,22 +212,16 @@ class Rule():
             parent.report(reason=self.reason)
 
         if "approve" in self.action:
-            thing.approve()
+            thing.mod.approve()
 
         if "approve_parent" in self.action:
-            parent.approve()
-
-        if "rts" in self.action:
-            r.submit("spam", "Overview for /u/"+thing.author.name, url="http://reddit.com/user/"+thing.author.name)
-
-        if "rts_parent" in self.action:
-            r.submit("spam", "Overview for /u/"+parent.author.name, url="http://reddit.com/user/"+parent.author.name)
+            parent.mod.approve()
 
         if self.comment:
-            comment.reply(self.comment).distinguish()
+            comment.reply(self.comment).mod.distinguish()
 
         if self.message:
-            r.send_message(comment.author, self.message_subject, self.message)
+            comment.author.message(self.message_subject, self.message)
 
         return True
         
@@ -239,20 +238,16 @@ class Bot():
 
     def run(self):
 
-        self.login()
         self.load_rules()
         self.mainloop()
 
-    def login(self):
-
-        r.login(ME, os.environ.get('password'), disable_warning=True)
 
     def load_rules(self):
 
         #get wiki page
 
         print('loading rules...')
-        wiki_page = r.get_wiki_page(SUBREDDIT, "users/"+ME.name).content_md
+        wiki_page = SUBREDDIT.wiki["users/"+ME.name].content_md
         try:
             i=1
             for entry in yaml.safe_load_all(wiki_page):
@@ -273,13 +268,13 @@ class Bot():
     def full_stream(self):
         #unending generator which returns content from /new, /comments, and /edited of /r/mod
 
-        subreddit = r.get_subreddit('mod')
+        subreddit = r.subreddit('mod')
 
         while True:
             single_round_stream = []
 
             #fetch /new
-            for submission in subreddit.get_new(limit=100):
+            for submission in subreddit.new(limit=100):
 
                 #avoid old work (important for bot startup)
                 if submission.created_utc < self.start_time:
@@ -293,7 +288,7 @@ class Bot():
                 single_round_stream.append(submission)
 
             #fetch /comments
-            for comment in subreddit.get_comments(limit=100):
+            for comment in subreddit.comments(limit=100):
 
                 #avoid old work
                 if comment.created_utc < self.start_time:
@@ -306,7 +301,7 @@ class Bot():
                 single_round_stream.append(comment)
 
             #fetch /edited
-            for thing in subreddit.get_edited(limit=100):
+            for thing in subreddit.mod.edited(limit=100):
                 #ignore removed things
                 if thing.banned_by:
                     continue
@@ -326,24 +321,13 @@ class Bot():
 
                 yield thing
 
-    def log_action(self, rule, thing):
-
-        rule_text = str(rule)
-        rule_text = '    '+rule_text.replace('\n','\n    ')
-
-        text = thing.permalink + '\n\n' + rule_text
-
-        title = "Activated on thing %(fullname)s by /u/%(user)s in /r/%(sub)s" % {'fullname':thing.fullname, 'user':thing.author.name, 'sub': thing.subreddit.display_name}
-
-        r.submit(SUBREDDIT, title, text=text)
-
     def mainloop(self):
 
         for thing in self.full_stream():
             print('checking thing '+thing.fullname+' by /u/'+thing.author.name+' in /r/'+thing.subreddit.display_name)
 
             #hard code rule reload
-            if isinstance(thing, praw.objects.Comment):
+            if isinstance(thing, praw.models.Comment):
                 if thing.author==ME and thing.body=="!reload":
                     thing.delete()
                     self.reload_rules()
@@ -351,9 +335,8 @@ class Bot():
             
             for rule in self.rules:
                 if rule.match_thing(thing):
-                    if rule.act_on(thing):
-                        if LOGGING_ENABLED:
-                            self.log_action(rule, thing)
+                    rule.act_on(thing)
+
                     
 
 
