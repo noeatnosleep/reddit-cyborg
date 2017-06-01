@@ -15,7 +15,7 @@ r=praw.Reddit(user_agent='reddit cyborg by /u/captainmeta4',
               client_secret= os.environ.get('client_secret')
               )
 
-SUBREDDIT = r.subreddit('redditcyborg')
+SUBREDDIT = os.environ.get('master_subreddit')
 ME = r.redditor(os.environ.get('username'))
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
