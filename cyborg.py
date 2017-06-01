@@ -7,17 +7,16 @@ from collections import deque
 import time
 
 #Globals
-username = 'captainmeta4'
 
 r=praw.Reddit(user_agent='reddit cyborg by /u/captainmeta4',
-              username = username,
+              username = os.environ.get('username'),
               password = os.environ.get('password'),
               client_id= os.environ.get('client_id'),
               client_secret= os.environ.get('client_secret')
               )
 
 SUBREDDIT = r.subreddit('redditcyborg')
-ME = r.redditor(username)
+ME = r.redditor(os.environ.get('username'))
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
 
