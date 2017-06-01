@@ -17,12 +17,19 @@ Matching criteria:
 * `author_name` - must be a `[list, of, usernames]`
 * `body` - must be a `[list, of, words]`. Applies only to comments and text submissions
 * `domain` - must be a `[list.of, domai.ns]`. Applies only to link submissions
-* `body_regex` - must be a regular expression.
+* `body_regex` - must be a `['list of one( or more)? regular expressions?']`. Applies only to comments and text submissions.
+* `title` - must be a `[list, of, words]`. Applies only to submissions.
 
 Outputs:
 
 * `action` - **must be a list** containing at least one of `remove`, `remove_parent`, `spam`, `spam_parent`, `ban`, `ban_parent`, `report`, `report_parent`, `approve`, `approve_parent`, `rts`, or `rts_parent`.
 * `comment` - Comment to reply with. Comments are distinguished.
-* `ban_duration` - Length of ban. Defaults to `None`.
-* `ban_message` - Message given in ban notice. Defaults to nothing.
+* `ban_duration` - Length of ban. Defaults to `None`. Use when `ban` or `ban_parent` are included in `action`.
+* `ban_message` - Message given in ban notice. Defaults to empty string. Use when `ban` or `ban_parent` are included in `action`.
 * `reason` - Action reason seen in mod log, ban notes, or report reason.
+* `message` - Send a PM to the user.
+* `message_subject` - Subject of message sent to user. Use with `message`.
+
+Modifications:
+
+* `invert` - Must be a list containing any subset of text-based input field names.
