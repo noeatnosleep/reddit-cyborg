@@ -7,22 +7,12 @@ import time
 
 #Globals
 
-<<<<<<< HEAD
 r=praw.Reddit('cyborg')
 
-SUBREDDIT = r.subreddit('redditcyborg')
-ME = r.redditor('captainmeta4')
-=======
-r=praw.Reddit(user_agent='reddit cyborg by /u/captainmeta4',
-              username = os.environ.get('username'),
-              password = os.environ.get('password'),
-              client_id= os.environ.get('client_id'),
-              client_secret= os.environ.get('client_secret')
-              )
 
-SUBREDDIT = r.subreddit(os.environ.get('master_subreddit'))
-ME = r.redditor(os.environ.get('username'))
->>>>>>> origin/master
+
+SUBREDDIT = r.subreddit('redditcyborg')
+ME = r.user.me()
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
 
@@ -170,13 +160,11 @@ class Rule():
                 return False
 
         #at this point all criteria are satisfied. Act.
-<<<<<<< HEAD
-=======
+
         if isinstance(thing, praw.models.Comment):
             print("rule triggered at "+thing.permalink())
         elif isinstance(thing, praw.models.Submission):
             print("rule triggered at "+thing.permalink)
->>>>>>> origin/master
 
         return True
 
@@ -247,10 +235,6 @@ class Bot():
         self.load_rules()
         self.mainloop()
 
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/master
     def load_rules(self):
 
         #get wiki page
@@ -277,13 +261,8 @@ class Bot():
     def full_stream(self):
         #unending generator which returns content from /new, /comments, and /edited of /r/mod
 
-<<<<<<< HEAD
         subreddit=r.subreddit('mod')
-        
-=======
-        subreddit = r.subreddit('mod')
 
->>>>>>> origin/master
         while True:
             single_round_stream = []
 
