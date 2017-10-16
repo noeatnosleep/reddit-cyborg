@@ -1,5 +1,4 @@
 import praw
-import json
 import yaml
 import os
 import re
@@ -8,10 +7,10 @@ import time
 
 #Globals
 
-r=praw.Reddit('reddit cyborg by /u/captainmeta4')
+r=praw.Reddit('cyborg')
 
-SUBREDDIT = r.get_subreddit('redditcyborg')
-ME = r.get_redditor('captainmeta4')
+SUBREDDIT = r.subreddit('redditcyborg')
+ME = r.redditor('captainmeta4')
 
 DISCLAIMER = "\n\n*^(I am a cyborg, and this action was performed automatically. Please message the moderators with any concerns.)"
 LOGGING_ENABLED = False
@@ -90,12 +89,12 @@ class Rule():
         #begin checking
         if self.type=="both":
             pass
-        elif isinstance(thing, praw.objects.Comment):
+        elif isinstance(thing, praw.models.Comment):
             if "submission" in self.type:
                 print('type mismatch - thing is not submission')
                 return False
             
-        elif isinstance(thing, praw.objects.Submission):
+        elif isinstance(thing, praw.models.Submission):
             if self.type == "comment":
                 print('type mismatch - thing is not comment')
                 return False
@@ -161,11 +160,7 @@ class Rule():
                 print('body regex mismatch')
                 return False
 
-            
-
-
         #at this point all criteria are satisfied. Act.
-        print("rule triggered at "+thing.permalink)
 
         return True
 
@@ -225,7 +220,7 @@ class Rule():
             r.send_message(comment.author, self.message_subject, self.message)
 
         return True
-        
+        s
 
 class Bot():
 
@@ -239,20 +234,15 @@ class Bot():
 
     def run(self):
 
-        self.login()
         self.load_rules()
         self.mainloop()
-
-    def login(self):
-
-        r.login(ME, os.environ.get('password'), disable_warning=True)
 
     def load_rules(self):
 
         #get wiki page
 
         print('loading rules...')
-        wiki_page = r.get_wiki_page(SUBREDDIT, "users/"+ME.name).content_md
+        wiki_page = SUBREDDIT.wiki["users/"+ME.name].content_md
         try:
             i=1
             for entry in yaml.safe_load_all(wiki_page):
@@ -273,13 +263,13 @@ class Bot():
     def full_stream(self):
         #unending generator which returns content from /new, /comments, and /edited of /r/mod
 
-        subreddit = r.get_subreddit('mod')
-
+        subreddit=r.subreddit('mod')
+        
         while True:
             single_round_stream = []
 
             #fetch /new
-            for submission in subreddit.get_new(limit=100):
+            for submission in subreddit.new(limit=100):
 
                 #avoid old work (important for bot startup)
                 if submission.created_utc < self.start_time:
@@ -293,7 +283,7 @@ class Bot():
                 single_round_stream.append(submission)
 
             #fetch /comments
-            for comment in subreddit.get_comments(limit=100):
+            for comment in subreddit.comments(limit=100):
 
                 #avoid old work
                 if comment.created_utc < self.start_time:
@@ -306,7 +296,7 @@ class Bot():
                 single_round_stream.append(comment)
 
             #fetch /edited
-            for thing in subreddit.get_edited(limit=100):
+            for thing in subreddit.mod.edited(limit=100):
                 #ignore removed things
                 if thing.banned_by:
                     continue
@@ -343,7 +333,7 @@ class Bot():
             print('checking thing '+thing.fullname+' by /u/'+thing.author.name+' in /r/'+thing.subreddit.display_name)
 
             #hard code rule reload
-            if isinstance(thing, praw.objects.Comment):
+            if isinstance(thing, praw.models.Comment):
                 if thing.author==ME and thing.body=="!reload":
                     thing.delete()
                     self.reload_rules()
