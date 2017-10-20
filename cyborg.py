@@ -317,7 +317,9 @@ class Bot():
     def mainloop(self):
 
         for thing in self.full_stream():
-            print('checking thing '+thing.fullname+' by /u/'+thing.author.name+' in /r/'+thing.subreddit.display_name)
+
+            name=getattr(thing.author,'name','[deleted]')
+            print('checking thing '+thing.fullname+' by /u/'+name+' in /r/'+thing.subreddit.display_name)
 
             #hard code rule reload
             if isinstance(thing, praw.models.Comment):
