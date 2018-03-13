@@ -4,6 +4,9 @@ import os
 import re
 from collections import deque
 import time
+import irclib
+import prawcore
+import threading
 
 #Globals
 
@@ -49,7 +52,8 @@ class Rule():
             'invert',
             'message_subject',
             'message',
-            'title'
+            'title',
+            'rule_name'
             ]
 
         for entry in data:
@@ -72,6 +76,8 @@ class Rule():
         self.ban_duration   = data.get('ban_duration', None)
         self.message_subject= data.get('message_subject',"Automatic Notification")
         self.message        = data.get('message',"")
+
+        self.name           = data.get('rule_name','None')
 
         self.invert = data.get('invert', [])
 
@@ -160,11 +166,7 @@ class Rule():
                 return False
 
         #at this point all criteria are satisfied. Act.
-
-        if isinstance(thing, praw.models.Comment):
-            print("rule triggered at "+thing.permalink())
-        elif isinstance(thing, praw.models.Submission):
-            print("rule triggered at "+thing.permalink)
+        print("rule triggered at "+thing.permalink)
 
         return True
 
@@ -212,10 +214,10 @@ class Rule():
             parent.mod.approve()
 
         if self.comment:
-            comment.reply(self.comment).mod.distinguish()
+            thing.reply(self.comment).mod.distinguish()
 
         if self.message:
-            comment.author.message(self.message_subject, self.message)
+            thing.author.message(self.message_subject, self.message)
 
         return True
         s
@@ -230,10 +232,51 @@ class Bot():
 
         self.already_done = deque([],maxlen=400)
 
+        #initiate IRC connection
+        self.i=irclib.IRC()
+        self.load_irc_config()
+
+    def load_irc_config(self):
+
+        #fetch and interpret wiki page
+        self.irc_config=next(yaml.safe_load_all(r.subreddit('redditcyborg').wiki['irc'].content_md))
+
+        for entry in self.irc_config:
+            self.i.add_server(entry,
+                         self.irc_config[entry]['port'],
+                         self.irc_config[entry]['nick'],
+                         self.irc_config[entry]['username'],
+                         self.irc_config[entry]['password'],
+                         self.irc_config[entry]['realname'],
+                         channels=self.irc_config[entry].get('channels',[]),
+                         raw=self.irc_config[entry].get('raw',False)
+                         )
+
+    
+    def pingpong(self):
+
+        for message in self.i.listen():
+            pass
+        
+        
+
     def run(self):
 
         self.load_rules()
-        self.mainloop()
+
+        #spin off pingpong thread
+        pingpong = threading.Thread(target=self.pingpong, name='pingpong')
+        pingpong.start()
+
+        while True:
+            try:
+                self.mainloop()
+            except KeyboardInterrupt:
+                break
+            except prawcore.exceptions.RequestException:
+                continue
+                
+            
 
     def load_rules(self):
 
@@ -314,6 +357,20 @@ class Bot():
 
                 yield thing
 
+    def log(self, rule, thing):
+
+        name=rule.name
+        permalink=thing.permalink
+        redditor=getattr(thing.author,"name","[deleted]")
+
+        output="{}: Triggered by /u/{} at http://reddit.com{}".format(name,redditor,permalink)
+
+        
+        channel=self.i.servers[0].channels[0]
+        channel.talk(output)
+
+        
+
     def mainloop(self):
 
         for thing in self.full_stream():
@@ -331,6 +388,7 @@ class Bot():
             for rule in self.rules:
                 if rule.match_thing(thing):
                     rule.act_on(thing)
+                    self.log(rule, thing)
 
                     
 
