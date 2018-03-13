@@ -239,7 +239,7 @@ class Bot():
     def load_irc_config(self):
 
         #fetch and interpret wiki page
-        self.irc_config=next(yaml.safe_load_all(r.subreddit('redditcyborg').wiki['irc'].content_md))
+        self.irc_config=next(yaml.safe_load_all(r.subreddit('cyborg_noeatnosleep').wiki['irc'].content_md))
 
         for entry in self.irc_config:
             self.i.add_server(entry,
