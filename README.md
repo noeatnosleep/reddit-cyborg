@@ -1,6 +1,6 @@
 # reddit-cyborg
 
-Reddit Cyborg is a personal automation assistant running under my main account /u/captainmeta4. It is similar to AutoModerator in design.
+Reddit Cyborg is a personal automation assistant running under my main account /u/noeatnosleep. It is similar to AutoModerator in design.
 
 Reddit Cyborg is my only bot that is not available for easy widespread usage. This decision is due to its ability to issue automated subreddit bans based on arbitrarily specified criteria. While I have a specific and necessary use for this feature, please remember that automated bans are usually poor form.
 
